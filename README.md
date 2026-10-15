@@ -8,3 +8,6 @@ ini foto tampilan pada layar
 itu ada tanda peringatan dipojok kanan bawah gegara ina226 tidak terkoneksi atau tidak dipasang
 <img width="1577" height="887" alt="IMG20261015222301" src="https://github.com/user-attachments/assets/6ee280e9-5dd7-4576-ac0b-bfe51fe24622" />
 <img width="1547" height="870" alt="IMG20261015222253" src="https://github.com/user-attachments/assets/7bcef087-6eff-42f5-a9ef-5bca31357e22" />
+
+
+mungkin nanti ada update fitur tambahan, ada rencana menggunakan pin adc bawaan esp untuk dijadikan pengukur tambahan, entah pengukur tegangan atau juga pengukur dioda dan resistor
