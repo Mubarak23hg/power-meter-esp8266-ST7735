@@ -1,3 +1,25 @@
+//pastikan cpuesp8266 diset di 160Mhz
+//pilih flash size 4MB(FS:3MB OTA:~512KB)
+//set #define SPI_FREQUENCY  80000000 untuk layar pada library tft
+//untuk wiring layar #define TFT_MOSI  PIN_D7  //gpio 13
+      // TFT_SCLK  gpio 14
+      // TFT_CS    gpio 15
+      // TFT_DC    gpio 0
+      // TFT_RST   gpio 2
+      // TFT_SDA   gpio 13
+      // TFT_SCL   gpio 14
+//  ina226 gpio 4 untuk SDA, gpio 5 untuk SCL, gpio 9 ke ALE
+// buat ke mosfet gpio 10
+// buat ke tombol up gpio 1
+// buat ke tombol ok gpio 16
+// buat ke tombol down gpio 3
+
+// nang meulah ini orang biasa nang kadatapi bisa ngeprogram jadi maaf kalo banyak salah atau kekurangan
+
+//buat setelah diupload misal layar tft jadi tampil hitam coba klik ok sekali, misal bisa masuk ke tampilan power meter berarti aman
+//soalnya tampilan utama itu tampilan Gif, jadi perlu upload gif dulu dengan cara aktifkan wifi lalu buka web //192.168.4.1
+//pada tampilan web paling bawah ada untuk pilih gif dan upload jika udah ada file gif yang dipilih
+
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include <ESP8266WiFi.h>
@@ -14,12 +36,11 @@
 #define ALERT_PIN 9       // GPIO 9 terhubung ke Pin ALE INA226
 #define I2C_ADDRESS 0x40
 
-// ---- Pengaturan skala GIF ----
-// 1 = pertahankan rasio (ada bar hitam di sisi), 0 = isi penuh layar (gambar bisa melar)
+// Pengaturan skala GIF
 #define GIF_FIT 1
 #define MAX_LINE 240      // lebar maksimum layar yang didukung buffer baris
 
-// ---- Grafik osiloskop ----
+// Grafik osiloskop
 #define GRAF_W 104        // jumlah sampel = lebar area grafik (piksel)
 
 const char* ssid = "gif esp8266";
@@ -30,27 +51,25 @@ TFT_eSPI tft = TFT_eSPI();
 AnimatedGIF gif;
 INA226 INA(I2C_ADDRESS);
 
-fs::File gifFile;        // dipakai pemutar GIF
-fs::File uploadFile;     // dipakai proses upload (terpisah dari pemutar)
+fs::File gifFile;     
+fs::File uploadFile;   
 String currentGifPath = "/animated.gif";
 volatile bool uploadSelesai = false;
-volatile bool gifBerubah = false;   // diset saat upload dimulai agar pemutar berhenti
+volatile bool gifBerubah = false;  
 bool adaGif = false;
 bool ina226Aktif = false;
 float currentLimit_A = 0.0;             // 0.0 = Fitur Limit Dinonaktifkan
 uint8_t limitMode = 1;                  // Mode 1: Cut-Off (ON/OFF), Mode 2: Constant Current PWM
 int pwmDuty = 0;                        // Duty cycle PWM (0 - 1023)
 
-volatile bool mosfetState = false;      // Default MATI (LOW)
-volatile bool tripOccurred = false;     // Status Trip Overcurrent
-bool autoResetTrip = false;             // Fitur Auto Reset Trip
-unsigned long lastTripTime = 0;         // Timer Auto Reset Trip
+volatile bool mosfetState = false;    
+volatile bool tripOccurred = false;    
+bool autoResetTrip = false;            
+unsigned long lastTripTime = 0;       
 
-// 0 = GIF, 1 = pengukur, 2 = layar pengaturan, 3 = pengukur grafik (osiloskop)
 uint8_t modeTampilan = 0;
 bool wifiAktif = false;
 
-// Tombol UP: tekan pendek = naik, tahan 3 detik = masuk/keluar mode pilih menu
 unsigned long pressStartUP = 0;
 bool isPressingUP = false;
 bool longPressUPExecuted = false;
@@ -58,7 +77,6 @@ bool longPressUPExecuted = false;
 unsigned long lastButtonScan = 0;
 const unsigned long LONG_PRESS_TIME = 3000;
 
-// Status menu (daftar menu selalu tampil di tampilan pengukur & grafik):
 //  MENU_TUTUP : OK pendek = ON/OFF beban
 //  MENU_PILIH : UP/DOWN pindah menu, OK pendek = pilih/edit
 //  MENU_EDIT  : UP/DOWN ubah nilai, OK pendek = kembali ke pilih menu
@@ -102,7 +120,6 @@ float grafA = 0.0;
 
 uint16_t usLineBuffer[MAX_LINE];
 
-// Parameter skala GIF (fixed point 16.16)
 int gifOX = 0, gifOY = 0, gifOW = 160, gifOH = 128;
 uint32_t gifXStep = 65536, gifYStep = 65536;
 
@@ -134,7 +151,6 @@ void gambarIkonWifi(int16_t x, int16_t y) {
   tft.drawCircleHelper(x + 7, y + 11, 10, 2, color);
 }
 
-// Hitung ukuran & posisi GIF agar menyesuaikan layar
 void hitungSkalaGIF(int gw, int gh) {
   int sw = tft.width();
   int sh = tft.height();
@@ -175,13 +191,11 @@ void GIFDraw(GIFDRAW *pDraw) {
   uint32_t iX = (uint32_t)pDraw->iX;
   int iW = pDraw->iWidth;
 
-  // Baris tujuan yang berasal dari baris sumber ini
   int dy0 = (int)((((uint32_t)sy << 16) + gifYStep - 1) / gifYStep);
   int dy1 = (int)(((((uint32_t)(sy + 1)) << 16) + gifYStep - 1) / gifYStep) - 1;
   if (dy1 >= gifOH) dy1 = gifOH - 1;
-  if (dy0 > dy1) return;  // baris dilewati saat diperkecil
+  if (dy0 > dy1) return;  
 
-  // Kolom tujuan yang tercakup oleh frame ini
   int dx0 = (int)(((iX << 16) + gifXStep - 1) / gifXStep);
   int dx1 = (int)((((iX + (uint32_t)iW) << 16) + gifXStep - 1) / gifXStep) - 1;
   if (dx1 >= gifOW) dx1 = gifOW - 1;
@@ -600,7 +614,7 @@ void handleSetLimit() {
   if (server.hasArg("mode")) {
     limitMode = server.arg("mode").toInt();
     if (limitMode == 2 && mosfetState) {
-      pwmDuty = 0; // Reset duty cycle ke 0 saat beralih ke Mode 2 untuk soft-start
+      pwmDuty = 0; 
     }
   }
   server.send(200, "text/plain", "OK");
@@ -632,7 +646,7 @@ void handleToggleMosfet() {
 void hitungParameterListrik(float busvoltage, float current_A, float power_W) {
   unsigned long now = millis();
   float deltaTimeSeconds = (now - lastEnergyCalc) / 1000.0;
-  if (lastEnergyCalc == 0 || deltaTimeSeconds > 2.0) deltaTimeSeconds = 0; // abaikan jeda panjang
+  if (lastEnergyCalc == 0 || deltaTimeSeconds > 2.0) deltaTimeSeconds = 0; 
   lastEnergyCalc = now;
 
   if (mosfetState) {
@@ -726,7 +740,6 @@ void handleData() {
   server.send(200, "application/json", json);
 }
 
-// Setelah upload: TIDAK restart, WiFi tetap menyala. Halaman kembali ke dashboard otomatis.
 void handleUploadResponse() {
   server.send(200, "text/html", 
     "<html><body style='background:#0a0a0a;color:white;font-family:sans-serif;text-align:center;padding-top:50px;'>"
@@ -743,7 +756,7 @@ void handleFileUpload() {
   if (upload.status == UPLOAD_FILE_START) {
     adaGif = false;
     uploadSelesai = false;
-    gifBerubah = true;   // minta pemutar GIF berhenti
+    gifBerubah = true;
     gif.close(); 
 
     if (LittleFS.exists(currentGifPath)) {
@@ -795,7 +808,7 @@ uint8_t jumlahMenu() {
   return (modeTampilan == 3) ? MENU_JUMLAH_GRAFIK : MENU_JUMLAH;
 }
 
-// Daftar menu yang selalu tampil di tampilan pengukur & grafik
+// Daftar menu
 void gambarDaftarMenu() {
   bool grafik = (modeTampilan == 3);
   uint8_t jumlah = jumlahMenu();
@@ -829,14 +842,13 @@ void gambarDaftarMenu() {
     tft.drawString(line, x, y0 + i * 12, 1);
   }
 
-  // Petunjuk fungsi tombol OK saat ini
+  // Petunjuk fungsi tombol OK
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
   if (menuState == MENU_TUTUP) tft.drawString("OK:BEBAN", x, yHint, 1);
   else if (menuState == MENU_PILIH) tft.drawString("OK:PILIH", x, yHint, 1);
   else tft.drawString("OK:BACK ", x, yHint, 1);
 }
 
-// Panel kanan (mode, CC, status MOSFET, ikon, menu) dipakai oleh tampilan pengukur & grafik
 void gambarPanelKanan() {
   char bufCC[12];
   snprintf(bufCC, sizeof(bufCC), "CC:%.2f", currentLimit_A);
@@ -850,7 +862,6 @@ void gambarPanelKanan() {
     tft.drawString(bufCC, 110, 15, 2);
   }
 
-  // Teks mode aktif
   tft.setTextColor(TFT_ORANGE, TFT_BLACK);
   if (limitMode == 1) {
     tft.drawString("mod 1", 110, 0, 2);
@@ -858,7 +869,7 @@ void gambarPanelKanan() {
     tft.drawString("mod 2", 110, 0, 2);
   }
 
-  // Status MOSFET ON/OFF
+  // Status MOSFET
   if (mosfetState) {
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
     tft.drawString("ON ", 137, 115, 2);
@@ -901,7 +912,7 @@ void perbaruiTampilanINA(bool forceRedraw) {
 
     hitungParameterListrik(busvoltage, current_A, power_W);
   }
-  if (cekAutoKembaliKeUtama(current_A)) return; // sudah pindah ke GIF, jangan gambar pengukur
+  if (cekAutoKembaliKeUtama(current_A)) return; 
 
   char bufV[10], bufA[10], bufW[10], bufWp[10], bufR[10];
   snprintf(bufV, sizeof(bufV), "%06.3f", busvoltage);
@@ -935,14 +946,10 @@ void perbaruiTampilanINA(bool forceRedraw) {
   gambarPanelKanan();
 }
 
-// ---------------------------------------------------------------
-//  Tampilan grafik (osiloskop): V dan A + grafik, panel kanan tetap
-// ---------------------------------------------------------------
 void gambarGrafik(int16_t y, int16_t h, float *data, float spanMin, uint16_t color, const char *unit) {
   const int16_t x = 1;
   const int16_t w = GRAF_W + 2;
 
-  // Skala otomatis: batas atas mengikuti nilai tertinggi di buffer
   float vmax = spanMin;
   for (int i = 0; i < GRAF_W; i++) {
     if (data[i] > vmax) vmax = data[i];
@@ -951,20 +958,17 @@ void gambarGrafik(int16_t y, int16_t h, float *data, float spanMin, uint16_t col
   tft.fillRect(x, y, w, h, TFT_BLACK);
   tft.drawRect(x, y, w, h, TFT_DARKGREY);
 
-  // Garis tengah putus-putus
   for (int16_t gx = x + 2; gx < x + w - 2; gx += 6) {
     tft.drawPixel(gx, y + h / 2, TFT_DARKGREY);
   }
 
-  // Label skala maksimum
   char lbl[12];
   snprintf(lbl, sizeof(lbl), "%.1f%s", vmax, unit);
   tft.setTextDatum(TL_DATUM);
   tft.setTextColor(TFT_DARKGREY);
   tft.drawString(lbl, x + 3, y + 2, 1);
 
-  // Jejak sinyal
-  int16_t ih = h - 3;            // tinggi efektif
+  int16_t ih = h - 3;        
   int16_t prevY = 0;
   for (int i = 0; i < GRAF_W; i++) {
     float v = data[i];
@@ -1012,7 +1016,7 @@ void perbaruiTampilanGrafik(bool forceRedraw) {
     histV[GRAF_W - 1] = busvoltage;
     histA[GRAF_W - 1] = current_A;
 
-    if (cekAutoKembaliKeUtama(current_A)) return; // sudah pindah ke GIF
+    if (cekAutoKembaliKeUtama(current_A)) return; 
   }
 
   char bufV[10], bufA[10];
@@ -1033,9 +1037,7 @@ void perbaruiTampilanGrafik(bool forceRedraw) {
   gambarPanelKanan();
 }
 
-// ---------------------------------------------------------------
 //  Layar pengaturan
-// ---------------------------------------------------------------
 void gambarPengaturan() {
   char buf[24];
 
@@ -1071,14 +1073,12 @@ void gambarPengaturan() {
   tft.setTextPadding(0);
 }
 
-// Gambar ulang tampilan aktif (dipanggil setelah ada perubahan)
 void segarkanTampilan() {
   if (modeTampilan == 1) perbaruiTampilanINA(true);
   else if (modeTampilan == 3) perbaruiTampilanGrafik(true);
   else if (modeTampilan == 2) gambarPengaturan();
 }
 
-// Bersihkan layar lalu gambar tampilan aktif dari awal
 void gambarUlangTampilan() {
   if (modeTampilan == 1) {
     gambarLayoutINA();
@@ -1180,7 +1180,6 @@ void keTampilanGIF() {
   Serial.println(">>> BERPINDAH KE MODE GIF <<<");
 }
 
-// Ubah nilai menu terpilih (tampilan pengukur/grafik): arah +1 (UP) atau -1 (DOWN)
 void ubahNilaiMenu(int8_t arah) {
   switch (menuIndex) {
     case 0: { // CC (langkah sesuai skala di pengaturan)
@@ -1212,7 +1211,6 @@ void ubahNilaiMenu(int8_t arah) {
   }
 }
 
-// Ubah nilai pengaturan terpilih: arah +1 (UP) atau -1 (DOWN)
 void ubahNilaiSetting(int8_t arah) {
   switch (settingIndex) {
     case 0: // skala set CC: UP = langkah lebih besar, DOWN = lebih halus
@@ -1220,11 +1218,11 @@ void ubahNilaiSetting(int8_t arah) {
       else if (arah < 0 && ccStepIndex < 2) ccStepIndex++;
       break;
 
-    case 1: // aktif/nonaktif peralihan otomatis ke GIF
+    case 1:
       autoKembaliAktif = (arah > 0);
       break;
 
-    case 2: // waktu peralihan otomatis (menit)
+    case 2:
       if (arah > 0 && autoKembaliMenit < 60) autoKembaliMenit++;
       else if (arah < 0 && autoKembaliMenit > 1) autoKembaliMenit--;
       break;
@@ -1263,37 +1261,36 @@ void prosesOKPendek() {
     return;
   }
 
-  // modeTampilan 1 (pengukur) atau 3 (grafik)
   if (menuState == MENU_TUTUP) {
-    ubahStatusMosfet();               // OK pendek = ON/OFF beban
+    ubahStatusMosfet();             
   } else if (menuState == MENU_PILIH) {
     switch (menuIndex) {
-      case 3: keTampilanPengaturan(); break;   // menu PENGATUR
-      case 4: keTampilanGIF(); break;          // menu KE GIF
-      case 5: keTampilanPengukur(); break;     // menu KEMBALI (hanya di tampilan grafik)
+      case 3: keTampilanPengaturan(); break;   
+      case 4: keTampilanGIF(); break;         
+      case 5: keTampilanPengukur(); break;    
       default:
-        menuState = MENU_EDIT;        // mulai edit nilai menu terpilih
+        menuState = MENU_EDIT;       
         segarkanTampilan();
         break;
     }
   } else {
-    menuState = MENU_PILIH;           // selesai edit
+    menuState = MENU_PILIH;         
     segarkanTampilan();
   }
 }
 
-// Tahan UP 3 detik: masuk/keluar mode pilih menu
+
 void prosesUpPanjang() {
   if (modeTampilan != 1 && modeTampilan != 3) return;
 
   if (menuState == MENU_TUTUP) {
-    menuState = MENU_PILIH;           // beralih ke fungsi pilih menu
+    menuState = MENU_PILIH;           
     Serial.println(">>> MODE MENU <<<");
   } else if (menuState == MENU_PILIH) {
-    menuState = MENU_TUTUP;           // kembali ke fungsi ON/OFF beban
+    menuState = MENU_TUTUP;           
     Serial.println(">>> MODE BEBAN <<<");
   } else {
-    return;                           // saat edit nilai: abaikan
+    return;                          
   }
   segarkanTampilan();
 }
@@ -1345,7 +1342,6 @@ void prosesDown() {
   segarkanTampilan();
 }
 
-// Return true jika berpindah ke tampilan GIF
 bool cekAutoKembaliKeUtama(float current_A) {
   if ((modeTampilan != 1 && modeTampilan != 3) || menuState != MENU_TUTUP || !autoKembaliAktif) {
     mulaiTanpaArus = millis();
@@ -1379,10 +1375,8 @@ void cekTombol() {
   static bool lastOK = HIGH;
   static bool lastDown = HIGH;
 
-  // OK: hanya tekan pendek (pilih menu / ON-OFF beban)
   if (okState == LOW && lastOK == HIGH) prosesOKPendek();
 
-  // UP: tekan pendek = naik (diproses saat dilepas), tahan 3 detik = mode pilih menu
   if (upState == LOW && !isPressingUP) {
     isPressingUP = true;
     pressStartUP = now;
@@ -1481,7 +1475,7 @@ void loop() {
           yield();
           cekTombol();
           proteksiLatar();
-          if (wifiAktif) server.handleClient();   // web tetap responsif saat GIF diputar
+          if (wifiAktif) server.handleClient();
           if (modeTampilan != 0 || gifBerubah) break;
         }
         gif.close();
@@ -1490,7 +1484,7 @@ void loop() {
   } else if (modeTampilan == 1) {
     perbaruiTampilanINA();
   } else if (modeTampilan == 2) {
-    proteksiLatar();                // proteksi arus tetap jalan di layar pengaturan
+    proteksiLatar();              
   } else if (modeTampilan == 3) {
     perbaruiTampilanGrafik();
   }
